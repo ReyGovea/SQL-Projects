@@ -1,0 +1,161 @@
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data;
+libname fram "&path/fram";
+libname orion "&path/orion";
+
+/* Question 1: Using SubQueries */
+/* 	a. Write a query that displays the average QUANTITY for all rows (i.e. company avg) */
+/* 	b. Find sales staff whose average quantity of items sold exceeds the company average quantity of items sold */
+
+Proc SQL;
+	Select AVG(Quantity) as MeanQuantity
+	From orion.order_fact
+;
+quit;
+
+title "Employees whose Average Quantitiy Items Sold Exceeds the Company's Average Items sold";
+proc sql;
+	Select Employee_ID, AVG(Quantity) as MeanQuantity
+		FROM orion.order_fact
+			Group by Employee_ID /*makes the var 'meanQuantity' calculate by EMPLID -- needing subQuery to compare to company avg*/
+			HAVING  MeanQuantity /*EMPLID AVG*/ > (Select AVG(Quantity) as MeanQuantity 
+						From orion.order_fact) /*Company avg*/
+			ORDER BY Employee_ID asc
+;
+Quit;
+title;
+
+/* Question 2: Using Non-Correlated Sub-Queries */
+/* 	a. Create a Query that returns a list of employee ID's with a Feb. Hire Date Anniversary */
+/* 	b. Using 2a. write a query that displays the employee ID and names of employees with Feb aniversaries */
+title 'Employee IDs for February Anniversaries';
+Proc SQL;
+	Select Employee_ID
+		FROM orion.employee_payroll
+		WHERE month(Employee_Hire_Date) = 2 /*month() translates sas date to numerical value representing month #*/
+;
+Quit;
+title;
+
+title 'Employees with February Anniversaries';
+Proc SQL;
+	Select Employee_ID, 
+		scan(Employee_Name,2) as FirstName Length= 15 label= "First Name",
+        scan(Employee_Name,1) as LastName  Length=15 label= 'Last Name' /*using scan to select the words from 'LastName, FirstName' entry and making two name variables*/
+       		FROM orion.employee_addresses 
+       			Where Employee_ID in (Select Employee_ID /*the 'IN' opporator in needed. '=' will not satisfy the condition bc of multiple values that are outputted*/
+							FROM orion.employee_payroll
+							WHERE month(Employee_Hire_Date) = 2)
+				ORDER BY LastName asc
+;
+Quit;
+title; 
+
+/* Question 3: Creating Subqueries Using the ALL Keyword */
+/* 	a. Determine if there are any lower level purchasing agents that are older than all of the highest level agents */
+
+title "Level I or II Purchasing Agents Who are Older than ALL Purchasing Agent III's";
+Proc SQL;
+	select Employee_ID, Job_Title, Birth_Date,
+		floor(('24Nov2007'd -birth_date)/365.25) AS Age /*calculating age var. from birth date as of the specified date*/
+			FROM orion.staff
+			HAVING Job_Title in ("Purchasing Agent I", "Purchasing Agent II") /*subsetting to the PA I and II Job titles*/
+					AND Birth_Date < ALL (Select Birth_Date
+											from orion.staff
+											Where Job_title = 'Purchasing Agent III') /*subsetting to birth dates of PA I&II with SAS DOB numerically lower than PA III indicating they are older*/
+;
+Quit;
+title;
+
+/* Question 4: Using Nested SubQueries */
+/* 	a. Generate a report with the EMPLID of the employee with the highest total sales in Orion dept. */
+/* 	b. Generate a report with the name of the salesperson with the highest total dollar sales amount */
+/* 	c. merge the two previous tables into one  */
+
+/* Part A: Biggest Total Sales Count */
+title "Employee With Highest Total Sales";
+Proc SQL;
+	Create Table TopSales AS /*Assigning data set name for part C.*/
+	(Select Employee_ID, 
+			SUM(Total_retail_price*Quantity) AS Total_Sales format=Dollar8.2 /*calculating the value of a total sale as the sum of the product of price and qunatity -- then formatting*/
+				FROM orion.order_fact
+				Group by Employee_ID /*setting the total sales to be subsetted by each employee*/
+				Having Total_sales ge all (Select SUM(Total_retail_price*Quantity) 
+											From orion.order_fact
+											Group by Employee_ID
+											HAVING Employee_ID ne 99999999) /*subsetting with the inner join to have the persons total sale being greater than everyone else*/
+						AND Employee_ID ne 99999999) /*excluding the non-descriptive internet sales from the analysis*/
+;
+Quit;
+
+Proc Print data= TopSales; Run; /*printing the query into a report*/
+title;
+
+/* Part B: Name of greatest salesperson */
+title "Name of Employee With Highest Total Sales";
+Proc SQL;
+	Create Table TopName AS /*Assigning data set name for part C.*/
+	Select Employee_ID, Employee_Name
+				FROM orion.employee_addresses
+				Group by Employee_ID
+				Having Employee_ID in (Select employee_ID /*matching the EMPLID in both tables*/
+											From orion.order_fact
+											Group by Employee_ID
+											HAVING Employee_ID ne 99999999
+													And SUM(Total_retail_price*Quantity) ge all (Select SUM(Total_retail_price*Quantity)  /*using 2nd subQuery to set Maximum sale condition*/
+																										From orion.order_fact
+																										Group by Employee_ID
+																										HAVING Employee_ID ne 99999999 ))
+						AND employee_ID ne 99999999 /*excluding internet sales*/
+;
+Quit;
+
+proc print data= TopName; run; /*printing the query into a report*/
+title;
+
+/* Part C: Merging both tables */
+title "Employee with Highest Sales";
+Proc SQL;
+	Create Table TopPerson AS 
+	Select * FROM TopName as n, TopSales as s
+		WHERE s.employee_ID = n.Employee_ID /*Using EMPLID as primary key to merge part A and B output*/
+;
+	Select * from TopPerson
+;
+Quit;
+title;
+
+/* Question 5: Creating a Simple Correlated SubQuery */
+/* 	a. Create report showing employee ID and birth month for all australian employees (using a correlated subquery) */
+/* 	b select only country from addresses  */
+/* 	c. use where to match EMPLID from both data sets  */
+/* 	d. Order by birth month  */
+
+title "Australian Employee's Birth Months";
+proc sql;
+select Employee_ID, month(Birth_date) as BirthMonth /*calculating numeric value of birth month*/
+   from orion.Employee_payroll
+   where 'AU'= /*subsetting australia selected from variable country of EMPLID that matches in both tables*/
+	(select Country
+    from orion.Employee_Addresses
+    where Employee_payroll.Employee_ID=
+          Employee_Addresses.Employee_ID)
+    ORDER BY BirthMonth ASC /*ordering by birthmonth*/
+;
+quit;
+title;
+
+/* Question 6: Using Correlated SubQuery */
+/* 	a. Report that displays EMPLID, EMPL_Gender and Marital Status for EMPL who donates more than 0.002 of their salary */
+
+title "Employee's With Donations > 0.002 of Their Salary";
+Proc SQL;
+	Select Employee_ID, Employee_Gender, Marital_Status
+		FROM Orion.Employee_Payroll
+		WHERE exists (select SUM(QTR1,QTR2,QTR3,QTR4) AS Total_Donations /*Using 'Exists' keyword for outputting values that meet the condition*/
+							From orion.Employee_Donations
+							Having Employee_Payroll.Employee_ID = Employee_Donations.Employee_ID /*matching both tables EMPLID*/
+									AND Total_Donations/Salary > .002) /*subsetting donation percentage to condition of > 0.002*/
+		ORDER BY Employee_ID
+;
+Quit;
+title;
