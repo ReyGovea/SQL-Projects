@@ -1,0 +1,88 @@
+'''
+/* Creating MacroVariable of pathname and selecting the Orion directory */
+%let path= /courses/d649d56dba27fe300/STA5067/SAS Data;
+libname orion "&path/orion";
+
+/* Question 1: Querying a Table 
+	a. Selecting all variables and observations from the table 'employee_payroll' 
+	b. subsetting the employee_Payroll table to include only four variables*/
+Proc SQL;
+	SELECT *
+		FROM orion.Employee_Payroll;
+	SELECT Employee_ID, Employee_Gender, Marital_Status, Salary
+		FROM orion.Employee_payroll;
+Quit;
+
+/* Question 2: Calculating a Column
+	a. Subset the employee_payroll table and create new var that is a proportion of salary called 'Tax' */
+Proc SQL;
+	SELECT Employee_ID, Employee_Gender, Marital_Status, Salary, Salary*.333 AS Tax
+		FROM orion.Employee_payroll; 
+Quit;
+
+/* Question 3: Conditional Processing 
+	-- Look at line 245 of CN for ref.
+	-- Attempting to place conditions of the different observation types to subset them*/
+Proc SQL;
+
+	SELECT Employee_ID, Salary,
+			CASE scan(Job_title, -1, ' ') /*needing a space in the quote for program to notice more than one word*/
+				WHEN "Manager" THEN "Manager"
+				WHEN "Director" THEN "Director"
+				WHEN "Officer" THEN "Executive"
+				WHEN "President" THEN "Executive"
+				ELSE "NA"
+			END AS Level,
+			
+			CASE /*needing to include calculated level by the when statement for code to recognize non-existing data*/
+				WHEN Calculated Level='Manager' AND Salary < 52000 THEN 'Low'
+				WHEN Calculated Level='Manager' AND Salary ge 52000 AND Salary le 72000 THEN 'Medium'
+				WHEN Calculated Level='Manager' AND Salary > 72000 THEN 'Large'
+				
+				WHEN Calculated Level='Director' AND Salary < 108000 THEN 'Low'
+				WHEN Calculated Level='Director' AND Salary ge 108000 AND Salary le 135000 THEN 'Medium'
+				WHEN Calculated Level='Director' AND Salary > 135000 THEN 'High'
+				
+				WHEN Calculated Level='Executive' AND Salary < 240000 THEN 'Low'
+				WHEN Calculated Level='Executive' AND Salary ge 240000 AND Salary le 300000 THEN 'Medium'
+				WHEN Calculated Level='Executive' AND Salary > 300000 THEN'High'
+			END AS Salary_Range
+	FROM orion.Staff
+	WHERE Calculated Level NE 'NA'; /*This statement should make including 'NA' in 2nd case statement not needed*/
+Quit;
+proc print data=orion.staff; run;
+
+/* Question 4: Eliminating Duplicates
+	a. Writing a query that generates a report displaying cities where Orion Star employees reside. 
+		i. Including title
+		ii. display unique cities without duplicates*/
+title 'Cities Where Employees Live';
+Proc SQL;
+	Describe Table Orion.Employee_Addresses; /*Looking at variable names and type in table*/
+	SELECT UNIQUE(City)
+		FROM Orion.Employee_Addresses;
+Quit;
+title;
+
+/* Question 5: Subsetting Data 
+	a. include donations >$90, employee ID, and Recipients, and total donations in table 
+	*/
+Proc SQL;
+	Describe Table orion.Employee_donations; /*looking at table attributes*/
+	SELECT Employee_ID, Recipients, qtr1+qtr2+qtr3+qtr4 AS Total 
+	FROM orion.Employee_donations 
+		WHERE CALCULATED total >90;
+Quit;
+
+'''
+
+
+
+
+
+
+
+
+
+
+
