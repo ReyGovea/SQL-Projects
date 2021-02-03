@@ -1,0 +1,146 @@
+'''
+%let path= /courses/d649d56dba27fe300/STA5067/SAS Data;
+libname orion "&path/orion";
+
+/* Question 1: Enhancing Output with Titles and Formats */
+/* 	(a) Select only rhe Employee_ID, Salary, And a new column called Tax that is 1/3 of the salary */
+/* 	(b) Select only rows for which Employee_Gender = "M", marital_status= "S" and Employee_Term_Date is not missing  */
+/* 	(c) Display the Tax and Salary columns using the COMMA10.2 format  */
+/* 	(d) Add this title to the report "Single Male Employee Salaries" */
+
+title 'Single Male Employee Salaries';
+Proc SQL;
+	SELECT Employee_ID, Salary format=comma10.2, 
+			Salary*(.333) AS Tax format= comma10.2 /*assinging a format of length 10 with 2 decimal places*/
+		FROM orion.employee_payroll
+			WHERE Employee_Gender= 'M' AND marital_status = 'S'
+				AND employee_term_date is not missing
+		ORDER BY salary desc;
+QUIT;
+
+title;
+
+/* Question 2: Using Formats to Linit the Width of Columns in the Output */
+/* 	(a) Add title "Australian Clothing Products" */
+/* 	(b) Include only rows where Product_Category = 'CLothes' and Supplier_COuntry= 'AU' */
+/* 	(c) Assign an appropriate label to the columns called Supplier, Group, and Product respectively  */
+/* 	(d)order the report by Product_Name */
+
+title 'Australian Clothing Products';
+Proc SQL;
+	SELECT Supplier_name 'Supplier' , /*assigning labels*/
+			Product_Group 'Group' ,
+			Product_Name 'Product'
+		FROM orion.Product_dim
+			WHERE Product_Category = 'Clothes' AND Supplier_Country = 'AU'
+		ORDER BY Product_name desc
+;
+Quit;
+title;
+
+/* Question 3: Enhancing Output with Multiple Techniques */
+/* 	(a) Creat report that displays Customer_ID, Customer_LastName, Customer_FirstName, Gender, Age */
+/* 	(b) Age must be a calculation as of 31DEC2007 */
+/* 	(c) Include only customers who were more than 50 yrs old as of 32DEC2007 */
+/* 	(d) Present the data ordered by descending age, last name, and first name  */
+/* 	(e) give appropriate title */
+/* 	(f) customer_id must be displayed with leading zero's */
+
+title "Orion Customers Who's Age is Greater than 50";
+Proc SQL;
+	Select customer_ID format= z5., /*the z5. option applies leading zero's that span 5 spaces*/
+			Customer_LastName, Customer_FirstName, Gender,
+		('31DEC2007'd -birth_date)/365.25 AS Age format= 3.2
+		From Orion.Customer
+			WHERE Country = 'US'
+			HAVING calculated Age > 50
+		ORDER BY calculated Age desc, Customer_lastName, Customer_FirstName 
+;
+Quit;
+title;
+
+/* Question 4: Summarizing Data I*/
+/* 	--Creating report that displays the number o employees residing in each city */
+/* 	(a) Use the City COlumn and the COUNT(*) function */
+/* 	(b) Group the data and order the output by CIty  */
+/* 	(c) add title to report */
+
+title 'Cities Where Employees Live';
+Proc SQL;
+	SELECT City, count(*) AS n /*naming the count of employees in each city as n*/
+		FROM Orion.employee_addresses
+			GROUP BY city 
+;
+Quit;
+title;
+
+/* Question 5: Using SAS Functions */
+/* 	-- Create a report that includes each employee's age at a time of employment */
+/* 	(a) Use Employee_ID, Birth_Date, Employee_Hire_Date, and Age */
+/* 	(b) Calculate age using INT() function  */
+/* 	(c) add title  */
+/* 	(d) display DOB and Employee Hire Date using MMDDYY10. format */
+/* 	(e) label each column appropriately  */
+
+title 'Age of Employment';
+Proc SQL;
+	SELECT employee_ID 'Employee ID' , 
+			Birth_Date 'Birth Date' Format= MMDDYY10.,
+			Employee_Hire_Date 'Hire Date' Format= MMDDYY10.,
+			INT((Employee_Hire_Date - Birth_Date)/365.25) AS Age
+		FROM orion.Employee_Payroll
+;
+Quit;
+title;
+
+/* Question 6: Summarizing Data II */
+/* 	(a) Use the data to create a report that shows total customers, total male customers, total female customers, percent male customers */
+/* 	(b) Apply title */
+/* 	(c) Arrange the report by value of percent male in ascending order  */
+/* 		-- the Boolean expression (customer_Gender = "M") evaluates as 1 when true and 0 when false */
+
+title 'Customer Demographics: Gender by Country';
+Proc SQL;
+	SELECT Country,
+		COUNT(*) as Customers, /*creating the variable that counts the customers by country*/
+		sum(find(gender,"m","i"))
+            as Male,
+        sum(find(gender,"f","i"))
+            as Female, /*variables that sum the males and females by looking for f and m key characters. using the "i" to show that capitalization does not matter*/
+        Calculated male/calculated customers 'Percent Male' 
+        	as percent_male format= percent. /*calculating the percent male and applying percent format*/
+     FROM orion.customer
+     	Group by Country /*grouping by country*/
+     	Order by Percent_male asc /*ordering by ascending country percent male*/
+;
+Quit;
+title;
+
+/* Question 7: Summarizing Data in Groups */
+/* 	(a) Display COuntry, Male Customers, Female Customers */
+/* 	(b) Only display countries that have more female than male customers  */
+/* 	(c) Order the report by descending female customers */
+/* 	(d) add title */
+
+title 'Countries with more Female than Male Customers';
+Proc SQL;
+	SELECT Country,
+		sum(find(gender,"m","i")) 'Male Customers'
+            as Male,
+        sum(find(gender,"f","i")) 'Female Customers'
+            as Female
+       FROM orion.customer
+       		GROUP BY Country
+       		HAVING Female > Male
+       		ORDER BY female desc
+;
+Quit;
+title;
+
+'''
+
+
+
+
+
+
