@@ -1,0 +1,138 @@
+/* 07 Complex Queries HW - Rey Govea - STA5067*/ 
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data; 
+libname Train "/home/rag170/my_courses/jhshows0/STA5067/SAS Data/train"; 
+libname orion "&path/orion"; 
+ 
+/* Question 1: Using In-Line Views  */ 
+ 
+/* Part A */ 
+Title1 "2007 Sales Force Sales Statistics"; 
+Title2 "For employees with 200.00 or more sales"; 
+Proc SQL; 
+	Select  Country, First_Name, Last_Name, Value_Sold, Orders, Avg_Order 
+		FROM 
+			(Select Employee_ID, SUM(Total_Retail_Price) AS Value_Sold , 
+			COUNT(*) AS Orders, 
+			calculated Value_Sold/ calculated Orders AS Avg_Order 
+			from orion.Order_fact 
+			Where Order_Date between '31Dec2006'd and'01Jan2008'd  
+			Group by Employee_ID) as o 
+				INNER JOIN Orion.Sales AS s 
+					ON  s.Employee_ID = o.Employee_ID 
+		GROUP BY Country, First_Name, Last_Name 
+		HAVING Calculated Value_Sold ge 200 
+		ORDER BY Country, Value_Sold desc, Orders desc 
+; 
+Quit; 
+title; 
+ 
+ 
+ 
+proc contents data=orion.sales;run; 
+Proc Contents data=orion.order_fact; run; 
+ 
+ 
+ 
+/* Part B */ 
+Title "2007 Sales Summary by Country"; 
+Proc SQL; 
+	Select Distinct Country, Max(Value_Sold) Label="Max Value Sold" AS Max_Val ,  
+				Max(Orders) Label="Max Orders" AS Max_Ord, 
+				Min(Avg_Order) Label="Min Average" AS Min_AvgO 
+	FROM (Select  Country, First_Name, Last_Name, Value_Sold, Orders, Avg_Order 
+			FROM 
+				(Select Employee_ID, SUM(Total_Retail_Price) AS Value_Sold , 
+				COUNT(*) AS Orders, 
+				calculated Value_Sold/ calculated Orders AS Avg_Order 
+				from orion.Order_fact 
+				Where Order_Date between '31Dec2006'd and'01Jan2008'd  
+				Group by Employee_ID) as o 
+					INNER JOIN Orion.Sales AS s 
+						ON  s.Employee_ID = o.Employee_ID 
+					GROUP BY Country, First_Name, Last_Name 
+					HAVING Calculated Value_Sold ge 200) 
+group by country 
+order by country 
+; 
+Quit; 
+ 
+ 
+/* Question 2: Building Complex Queries with In-Line Views  */ 
+ 
+/* Part A: Create a report aggregating the sum aof all salaries for each dept. */ 
+Title1 "Total Salaries by Department"; 
+Proc SQL; 
+	Select Department, 
+			Sum(Salary) AS Dept_Salary_Total 
+		FROM Orion.Employee_Payroll as p 
+				INNER JOIN Orion.Employee_Organization as o 
+					ON p.Employee_ID=o.Employee_ID /*calculating intersection of both tables*/ 
+		GROUP BY Department 
+; 
+Quit; 
+Title; 
+ 
+/* Part B: Create a report that incudes employee ID, name, and department*/ 
+title1 "Orion Employee_ID's"; 
+Proc SQL; 
+	Select a.Employee_ID, Employee_Name, department 
+		FROM Orion.employee_Addresses AS a 
+			INNER JOIN Orion.Employee_Organization AS o 
+				ON a.Employee_ID = o.Employee_ID 
+; 
+Quit; 
+Title; 
+ 
+/* Part C */ 
+Title "Employee Salaries as a Percent of Department Total"; 
+Proc SQL; 
+	Select Department, Employee_Name, Salary format=comma10.2, Salary/Calculated Salary_Total format=percent8.1 AS Percent 
+	From Orion.Employee_Payroll as p, 
+		(Select beta.Employee_ID, beta.Employee_Name,  beta.Department, 
+			Sum(Salary) AS Dept_Salary_Total 
+	FROM orion.Employee_Payroll as p, 
+		(Select a.Employee_ID, Employee_Name, department 
+			FROM Orion.employee_Addresses AS a 
+			, Orion.Employee_Organization AS o 
+			WHERE a.Employee_ID = o.Employee_ID) as alpha 
+		WHERE p.Employee_ID=alpha.Employee_ID 
+		GROUP BY Department ) as beta 
+	where Beta.Employee_ID=p.Employee_ID 
+	Group BY Department, Employee_Name, Salary 
+	Order By department, Percent desc 
+; 
+Quit; 
+Title; 
+ 
+Proc SQL; 
+CREATE Table FLName AS 
+SELECT  
+	Scan(Employee_Name, 2, ", ") AS FirstName,	/*second word deliminated by ", " is first name*/ 
+	Scan(Employee_Name, 1, ", ") AS LastName	 
+FROM 
+  Orion.Employee_Addresses 
+; 
+Quit; 
+ 
+Title "2007 Total Sales"; 
+Proc SQL; 
+	Select Distinct LastName||FirstName AS Manager, /*concatonating to get "last First" format of name that was created in the above table*/ 
+						FirstName||LastName AS Employee, 
+						Sum(Total_Retail_Price) AS Total_Sales 
+		FROM Orion.Order_Fact AS f, 
+				Orion.Employee_Organization AS o, 
+				Orion.Employee_Addresses AS a, 
+				FLName 
+		WHERE f.Order_Date between '31Dec2006'd and'01Jan2008'd 
+				AND a.Employee_ID=o.employee_id 
+				AND f.Employee_ID=o.Employee_ID 
+				AND a.Employee_ID=f.Employee_ID 
+		ORDER BY Country, Manager, LastName, FirstName, Total_Sales Desc 
+; 
+Quit; 
+Title; 
+ 
+Proc contents data=orion.order_fact;run; 
+proc contents data=orion.employee_addresses;run; 
+proc contents data=orion.employee_organization;run; 
+ 

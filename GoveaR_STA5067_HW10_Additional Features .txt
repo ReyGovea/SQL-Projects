@@ -1,0 +1,170 @@
+/* Rey Govea -- STA5067 -- 10 SQL Additional Features HW */
+
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data;
+libname orion "&path/orion";
+
+/* Quesiton 1: Creating and Using Macro Variables */
+
+/* Part A: Write a query for Employee_payroll table that returns the highest value of Salary. Title Appropriately */
+/* 	-- Use the %LET statments to create two macro variables */
+/* 			i. DataSet = Employee_Payroll */
+/* 			ii. VariableName = Salary */
+
+%Let DataSet = Employee_Payroll ;/*Setting the table name macro */
+%Let VariableName= Salary; /*setting the Var name macro*/
+
+Title "Max Salary Under Orion Employee Payroll";
+Proc SQL;
+	Select Max(Salary) Label= "Salary" Format= dollar12. /*applying the statistic with the format*/
+		FROM Orion.Employee_Payroll
+;
+Quit;
+title;
+
+
+/* Part B : Modify the query written from a*/
+/* 	-- replace each hard-coded reference to Employee_Payroll with references to the macro var. &DataSet */
+/* 	-- replace each hard-coded reference to Salary with the reference to the macrovariable &Variablename */
+/* 	-- resubmit the query and verify the report is similar to 1.a */
+
+Title "Max '&VariableName' Under Orion Employee Payroll";
+Proc SQL;
+	Select Max(&VariableName) Label= "&VariableName" Format= dollar12. /*applying the statistic with the format*/
+		FROM Orion.&DataSet
+;
+Quit;
+title;
+
+/* Part C: Use the %Let Statements to change the values of my Macro Variable */
+/* 	-- DataSet = Price_List */
+/* 	-- VariableName = Unit_Sales_Price */
+
+%Let DataSet = Price_List;/*Setting the New table name macro */
+%Let VariableName= Unit_Sales_Price; /*setting the New Var name macro*/
+
+Title "Max '&VariableName' Under Orion Employee Payroll";
+Proc SQL;
+	Select Max(&VariableName) Label= "&VariableName" Format= dollar12. /*applying the statistic with the format*/
+		FROM Orion.&DataSet
+;
+Quit;
+title;
+
+/* Question 2: Creating a Macro Variable from a SQL Query */
+
+/* Part A: Produce a report of Coutnry and a new column named Purchases AS Sum(Total_Retail_Price) */
+/* 	-- Group the Report by Country */
+/* 	-- Include Only Orders placed in 2007 */
+/* 	-- Order the report s.t. the highest values of Purchases sums are at the top */
+/* 	-- order_fact contains: Customer_ID, Total_Retail_price */
+/* 	-- Customer consatains: Customer_ID, Country */
+/* 	-- Name the report "2007 Purchases by Country" and label according to sample report */
+
+title "2007 Purchases by Country";
+Proc SQL;
+	Select Country, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+	FROM Orion.Order_Fact as a
+			Inner Join Orion.Customer as b
+				ON a.Customer_ID=b.Customer_ID
+	Where Year(Order_Date)= 2007
+	Group By Country
+	Order By Purchases desc
+;
+Quit;
+Title;
+
+proc contents data=order;
+
+/* Part B: Write a similar Query to the first but modified to produce a report of Purchases by Customer_Name for the year 2007 */
+/* 	-- Subset the Query s.t. only customers from the Top-Buying Country ("US") are included */
+/* 	-- Order the report s.t. customers with the highest purchases are at the top */
+/* 	-- order_fact contains: Customer_ID, Total_Retail_price  */
+/*  -- Customer consatains: Customer_ID,Customer_Name, Country */
+/*  -- Name report "2007 US Customer Purchases" w/ second title: "Total US Purchases: $10,655.97" as indicated by the previous query */
+
+
+title1 "2007 US Customer Purchases";
+title2 "Total US Purchases: $10,655.97";
+Proc SQL;
+	Select Customer_Name, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+	FROM Orion.Order_Fact as a
+			Inner Join Orion.Customer as b
+				ON a.Customer_ID=b.Customer_ID /*combining the data sets on 1-1 customer ID's*/
+	Where Year(Order_Date)= 2007
+			AND Country = "US"
+	Group By Customer_Name
+	Order By Purchases desc
+;
+Quit;
+Title;
+
+/* Part C: Automate the report written in 2.b */
+/* 	i. Modify the query in 2.a. s.t. instead of output, Country (&Country) and Purchases (&Country_Purchases) are writen as macro variables for first returned row (largest Country Purchase) */
+/* 	ii. Modify the query in 2.b. by substituting the macro variable reference &country for everytime "US" was written */
+/* 		-- Use &Country_Purchases  in the second title line in place of the $10,655.97 */
+/* 		-- run. the results should be the same as 2.b  */
+/* 	-- Reminder: Double Quotations should be used around macro variable references */
+/* Part C.i */
+title "2007 Purchases by Country";
+Proc SQL NoPrint; /*hindering the report from being printed*/
+	Select Country, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+		INTO :Country, :Country_Purchases /*assigning macro vars to above vars*/
+	FROM Orion.Order_Fact as a
+			Inner Join Orion.Customer as b
+				ON a.Customer_ID=b.Customer_ID
+	Where Year(Order_Date)= 2007
+	Group By Country
+	Order By Purchases desc
+;
+Quit;
+Title;
+%put The largest purchasing country is &Country whose purchasing total is &Country_Purchases; /*applying the macro variables created from INTO clause for printing in log*/
+
+/* Part C.ii */
+title1 "2007 &Country Customer Purchases";
+title2 "Total &Country Purchases: &Country_Purchases"; /*using the macro variable for sum of countries Retail Price*/
+Proc SQL;
+	Select Customer_Name, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+	FROM Orion.Order_Fact as a
+			Inner Join Orion.Customer as b
+				ON a.Customer_ID=b.Customer_ID /*combining the data sets on 1-1 customer ID's*/
+	Where Year(Order_Date)= 2007
+			AND Country = "&Country" /*Using Macro var. for substitution of US*/
+	Group By Customer_Name
+	Order By Purchases desc
+;
+Quit;
+Title;
+
+/* Part D: Starting with code from 2.c modify the query s.t. the country with the lowest total purchases is read into the macro var instead of the highest.  */
+/* 	-- Rerun both queries  */
+
+Proc SQL NoPrint; /*hindering the report from being printed -- This allows for changes to apply to log*/
+	Select Country, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+		INTO :Country, :Country_Purchases /*assigning macro vars to above vars*/
+	FROM Orion.Order_Fact as a
+			Inner Join Orion.Customer as b
+				ON a.Customer_ID=b.Customer_ID
+	Where Year(Order_Date)= 2007
+	Group By Country
+	Order By Purchases asc /*By setting the order to ascending, the macro's change by becomming assigned to the country with the lowest total purchases*/
+;
+Reset Print /*wanting to print the new report with updated macro's*/
+;
+title1 "2007 &Country Customer Purchases";
+title2 "Total &Country Purchases: &Country_Purchases"; /*Applying title after first Query s.t. the new Macro's are applied*/
+	Select Customer_Name, Sum(Total_Retail_Price) format=Dollar12.2 AS Purchases
+		FROM Orion.Order_Fact as a
+				Inner Join Orion.Customer as b
+					ON a.Customer_ID=b.Customer_ID 
+		Where Year(Order_Date)= 2007
+				AND Country = "&Country" 
+		Group By Customer_Name
+		Order By Purchases asc
+;
+Quit;
+Title;
+
+
+
+

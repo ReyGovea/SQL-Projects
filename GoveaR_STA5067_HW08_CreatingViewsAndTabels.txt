@@ -1,0 +1,140 @@
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data; 
+libname orion "&path/orion"; 
+ 
+/* Question 1: Creating and Using a View to Provide Consolidated Information */ 
+/* Part A: Create a view conatining variable info and select only records where Product_Name contains "T-Shirt" */ 
+Proc SQl; 
+	Create View T_Shirts AS 
+		Select d.Product_ID, Supplier_Name Format=$20., /*dollar format*/ 
+					Product_Name, Unit_Sales_Price "Retail Price" /*label applied*/ 
+		FROM Orion.Product_Dim as d,  
+				Orion.Price_List as l 
+		WHERE Product_Name CONTAINS "T-Shirt" /*selecting product with tshirt in it*/ 
+			AND d.Product_ID=l.Product_ID /*Inner join for intersection of product ID*/ 
+;				 
+Quit; 
+ 
+/* Part B: Write a query that sorts the table by supplier name and product ID */ 
+Title "Orion T-Shirt Prices"; 
+Proc SQL; 
+	Select Product_ID, Supplier_Name, Product_Name, Unit_Sales_Price 
+		FROM T_Shirts 
+		Order By Supplier_Name, Product_ID 
+; 
+Quit; 
+title; 
+ 
+/* Part C: Display variables for all tshirts priced less than $20*/ 
+title "Orion Shirts < $20"; 
+Proc SQL; 
+	Select Product_ID, Product_Name, Unit_Sales_Price 
+		FROM T_Shirts 
+		WHERE Unit_Sales_Price < 20 
+		ORDER BY Unit_Sales_Price 
+; 
+Quit; 
+title; 
+ 
+/* Question 2: Creating and Using a View that Updates Itself Over Time */ 
+ 
+/* Part A: Create a view with all of the columns and creates variable Price that is # of years since origional price times inflation factor*/ 
+/* 	-- round the price to nearest cent */ 
+Proc SQL; 
+	CREATE VIEW Current_Catelog AS  
+		Select Product_Category, Product_Group,d.Product_ID,Product_Line, 
+				Product_Name, Supplier_Country, Supplier_ID, Supplier_Name, 
+				ROUND(Unit_Sales_Price, 2)*(ROUND(Factor,2)**(year(today())-year(start_Date))) AS Price 
+		FROM Orion.Product_Dim as d, 
+				Orion.Price_list as l 
+		WHERE d.Product_ID=l.Product_ID 
+; 
+Quit; 
+ 
+/* Part B: provide table of roller skates items that is sorted*/ 
+Title "Orion Catelog of Roller Skates"; 
+Proc SQL; 
+	Select Supplier_Name, Product_Name, Price 
+		FROM Current_Catelog 
+		WHERE Product_Name Contains "Roller Skate" 
+		ORDER BY Supplier_Name, Price 
+; 
+Quit; 
+Title; 
+ 
+/* Part C: provide the current and old prices with the increase displayed*/ 
+Title "Orion Increase in Product Prices"; 
+Proc SQL; 
+	Select Product_Name, l.Unit_Sales_Price, Price,  
+			Price-l.Unit_Sales_Price AS Increase 
+		FROM Current_Catelog, Orion.Price_List AS l 
+		HAVING Calculated Increase > 5 
+		ORDER BY Increase desc 
+; 
+Quit; 
+title; 
+ 
+proc contents data=orion.product_Dim;run; 
+proc contents data=orion.price_List;run; 
+ 
+ 
+/* Question 3: Creating a Table and Adding Data Using a Query */ /*date format may not be correctly applied*/ 
+ 
+/* Part A: Create a table that contains the following names */ 
+/* 	-- Format appropriately */ 
+/* 	-- Order by year and then descending salary */ 
+Proc SQL; 
+	CREATE TABLE Employees AS /*creating the table*/ 
+		Select a.Employee_ID, /*specifying ID s.t. tables dont contradict*/ 
+			Employee_Hire_Date format=MMDDYYYY10. AS Hire_Date , /*applying date format and relabeling*/ 
+			Salary format=comma10.2, 
+			Birth_Date format=MMDDYYYY10., 
+			employee_Gender AS Gender, 
+			Country, 
+			City 
+		FROM Orion.Employee_addresses AS a,  
+				Orion.Employee_payroll AS p  
+		WHERE Employee_Term_date NE . 
+			 	AND a.Employee_ID=p.Employee_ID /*Inner Join*/ 
+	 	ORDER BY Employee_Hire_Date, Salary desc /*ordering*/ 
+; 
+Quit; 
+ 
+/* Part B */ 
+title "Female Employees who's Salary is > $75,000"; 
+Proc SQL; 
+	Select * 
+		FROM Employees 
+		WHERE Gender = "F" 
+			AND Salary > 75000 
+; 
+Quit; 
+title; 
+ 
+ 
+/* Question 4: Creating a Table and Inserting Date Using a Complex Query */ 
+ 
+Proc SQL; 
+	Create Table Direct_Compensation as  
+		Select Distinct f.Employee_ID, 
+				trim(First_Name)||" "||Last_Name AS Name, /*Concatonating the first and last names to give full name*/ 
+				Scan(Job_Title, 3, " ") AS Level, /*Looking for the 3rd word in Job Title for level*/ 
+				Salary,  
+				SUM(Total_retail_Price)*.15 AS Commision,  
+				Salary+Calculated Commision AS Direct_Compensation 
+		FROM Orion.Order_Fact as f 
+				INNER JOIN Orion.Sales as s 
+					ON f.Employee_ID=s.Employee_ID 
+		Group By f.Employee_ID 
+		Having Order_Date between'31Dec2006'd and'01Jan2008'd 
+; 
+Quit; 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

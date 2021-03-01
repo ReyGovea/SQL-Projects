@@ -1,0 +1,156 @@
+/* Rey Govea -- 09 SQL Set Operators HW */ 
+ 
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data; 
+libname orion "&path/orion"; 
+ 
+/* Question 1: Using the INTERSECT Operator  */ 
+/* 	-- Create a report that shows the customer_ID of all customers who placed orders  */ 
+Proc SQL; 
+	Select Customer_ID 
+		FROM Orion.Order_fact 
+			INTERSECT ALL /*Using Intersect all statement to consider the customer */ 
+	Select Customer_ID 
+		FROM Orion.Customer 
+; 
+Quit; 
+ 
+/* Qustion 2: Using the EXCEPT Operator to Count Rows  */ 
+/* 	-- Create a report that displays the total count of employees who did not make any charitable donations */ 
+/* 	-- Both tables contain EMPLID  */ 
+Proc SQL; 
+	Select Count(*) 'No. Employees w/o Donation Amounts' /*count option will provide total amount*/ 
+		FROM (Select Employee_ID 
+			From Orion.Employee_Organization 
+				Except    
+			Select Employee_ID 
+				From Orion.Employee_Donations) /*subquery to exclude all employees who are in the employee donations table*/ 
+; 
+Quit; 
+ 
+/* Question 3: Using INTERSECT Operator to Count Rows */ 
+/* 	-- Create report that shows the total number of customers who placed orders  */ 
+/* 	-- there are matching customer ID's */ 
+Proc SQL; 
+	Select Count(*) 'No. Customers who Placed Orders' 
+		FROM (Select customer_ID 
+			From Orion.Order_fact 
+				INTERSECT    
+			Select Customer_ID 
+				From Orion.Customer) 
+; 
+Quit; 
+ 
+/* Question 4: Using the EXCEPT Operator with a SubQuery  */ 
+/* 	-- Create a report that shows the EMPLID and Names of sales reps who did not sell anything in 2007 */ 
+ 
+Title "Sales Reps Who Made No Sales in 2007"; 
+Proc SQL; 
+	Select distinct Employee_ID, Employee_Name  /*Querying the table with EMPLID and name*/ 
+		FROM Orion.Employee_Addresses 
+			WHERE Employee_ID in (Select Employee_ID  
+										From Orion.Sales /*whole set of sales reps*/ 
+											EXCEPT 
+									Select Employee_ID 
+										From Orion.Order_Fact 
+										Where year(Order_date)=2007) /*excluding the subset from 2007*/ 
+; 
+QUIT; 
+ 
+ 
+/* Question 5: Using the INTERSECT Operator With a SubQuery  */ 
+/* 	-- Create a report that displays the total salary for all customers who placed orders */ 
+ 
+Proc SQL; 
+	Select Customer_ID, Customer_Name 
+		FROM Orion.Customer 
+			INTERSECT ALL 
+	Select Customer_ID 
+		FROM (Select distinct customer_ID 
+				From orion.order_fact 
+					Having Sum(Quantity)>0) 
+	 
+; 
+Quit; 
+ 
+ 
+/* Question 6: Using the UNION Operator */ 
+/* 	-- Create a report that includes customer_ID and Customer_Name for all customers who placed orders */ 
+Title "Payroll Report for Sales Representatives"; 
+Proc SQL; 
+	Select "Total Paid to ALL Female Sales Representatives, SUM(Salary)", 
+			SUM(Salary) Label="Total Salary"  Format=dollar12. AS FS_Total, 
+			Count(Gender) Label="Gender Total" AS FG_Total 
+		FROM Orion.Sales 
+				WHERE Gender = "F" 
+			UNION  
+	Select "Total Paid to ALL Male Sales Representatives, SUM(Salary)", 
+			SUM(Salary) Format=dollar12. AS MS_Total, /*labels are not needed here because it follows the first queries format*/ 
+			Count(Gender) AS MG_Total 
+		FROM Orion.Sales 
+				WHERE Gender = "M" 
+; 
+Quit; 
+title; 
+ 
+/* Question 7: Using the OUTER JOIN Operator with the CORR Keyword  */ 
+Title "2007 Sales Report for QTR1 & QTR2"; 
+Proc SQL; 
+	Select * 
+		FROM Orion.QTR1_2007 
+			OUTER UNION CORR /*overlays columns with matching variable names and only includes variables that are in both sets*/ 
+	Select * 
+		FROM Orion.QTR1_2007 
+; 
+Quit; 
+title; 
+ 
+/* Question 8: Comparing UNION and OUTER UNION Operators */ 
+ 
+/* Part A -- Using UNION to stack both QTR1_2007 & QTR2_2007 */ 
+title "Concatonated Tables for 2007 Sales Report for QTR1 & QTR2 "; 
+Proc SQL; 
+	Select * 
+		FROM Orion.QTR1_2007 
+			UNION  
+	Select * 
+		FROM Orion.QTR2_2007 
+; 
+Quit; 
+title; 
+/* Part B -- Use the OUTER UNION operator w/o the CORR Keyowrd to stack the data  */ 
+ 
+Title "Non-Stacked 2007 Sales Report for QTR1 & QTR2"; 
+Proc SQL; 
+	Select * 
+		FROM Orion.QTR1_2007 
+			OUTER UNION   
+	Select * 
+		FROM Orion.QTR1_2007 
+; 
+Quit; 
+title; 
+ 
+ 
+ 
+ 
+ 
+ 
+/* proc contents data= orion.customer;run; */ 
+/* proc contents data=orion.employee_addresses;run; */ 
+/* proc contents data=orion.sales;run; */ 
+/* proc contents data= orion.order_fact;run; */ 
+/* proc print data=orion.sales; run; */ 
+/* proc print data=orion.order_fact; run; */ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

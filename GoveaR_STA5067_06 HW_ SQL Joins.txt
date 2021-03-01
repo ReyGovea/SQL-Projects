@@ -1,0 +1,203 @@
+%let path=/courses/d649d56dba27fe300/STA5067/SAS Data;
+libname Train "/home/rag170/my_courses/jhshows0/STA5067/SAS Data/train";
+libname orion "&path/orion";
+
+
+/* Question 1: Using an Inner Join */
+/* 	- Produce report on employee name and their years of service  */
+/* 	- only print YOS > 30 yrs */
+/* 	- Order alphabetically by name  */
+/* 	- Insert titles  */
+
+Title1 "Employees with More than 30 Years of Service";
+Title2 "As of December 31, 2007";
+Proc SQL;
+	Select Employee_Name,
+			intck('year',Employee_Hire_Date,'31DEC2007'd) as YOS /*calculating Years of Service*/
+																/*INTCK is function that gives the time between two dates*/
+			FROM orion.employee_addresses as a,
+				orion.Employee_Payroll as p
+			WHERE a.Employee_ID=p.Employee_ID /*inner join -- computes intersection of both sets*/
+				AND Calculated YOS>30 /*subsetting by YOS amount*/
+			ORDER BY Employee_Name asc /*alphabatizing report order*/
+;
+Quit;
+Title;
+
+/* Question 2: Use of an Outer Join */
+/* 	- Join Orion Sales and EMPL Addresses to show names and cities of all orion employees */
+/* 	- if an Employee is in sales, show the job title  */
+/* 	- present in alpha order by city, Job title, than EMPL name  */
+
+title "Name and Cities of Orion Employees";
+Proc SQL;
+	Select Employee_Name "Name", /*Assigning label*/
+			City, Job_Title
+		FROM orion.Employee_addresses as a
+			LEFT JOIN orion.sales as s
+				ON a.Employee_ID=s.Employee_ID
+		ORDER BY City Asc, Job_Title, Employee_Name /*ordering by city, job title, name*/
+;
+Quit;
+title;
+
+/* Question 3: Joining Multiple Tables 01*/
+/* 	- Create report showing orion star internet customers residing in US or australia who purchased foreign manufactured goods */
+/* 	- Title appropriately  */
+/* 	- display customers names and amount of foreign purchases made  */
+/* 	- Order the report by descending foreign purchases, then by alpha name  */
+/* 	- EMPLID = 99999999 is an internet order dummy ID  */
+	
+title1 "US and Australian Internet Customers";
+title2 "Purchasing Foreign Manufactured Products";
+Proc SQL;
+	Select Customer_name "Name",
+			Count(*) AS Purchases /*Totaling the obs. to calculate Purchases*/
+		FROM Orion.Product_Dim as p,
+				Orion.Order_Fact as o,
+				Orion.Customer as c /*short-naming the file locations s.t. easier to ref. var. later*/
+			WHERE p.Product_ID=o.Product_ID
+					AND o.Customer_ID = c.Customer_ID /*setting the equal var. to connect all three tables bc Product_Dim has product_ID but not Customer_ID; Order_Fact has both*/
+					AND p.Supplier_Country ne Country /*setting condition of foreign purchase*/
+					AND Country in ('US','AU') /*specifying the two countries*/
+					AND Employee_ID = 99999999 /*making all purchases internet orders*/
+		GROUP BY Customer_Name /*this allows for purchase totals to be by customer name*/
+		ORDER BY Purchases desc, Customer_Name /*sets the order of the report*/
+;
+Quit;
+title;
+
+
+/* Question 4: Joining Multiple Tables 02 */
+/* 	- Report the Orion Star Employees with >30 yrs of service as of 12/31/2007 */
+/* 	- Display Employees name, Years of service, and Employee's manager name  */
+/* 	- Order by alpha manager name, descending YOS, and alpha employee name  */
+/* 	- label columns */
+
+title1 "Employees With More than 30 Years of Service ";
+title2 "As of December 31, 2007";
+Proc SQL;
+	Select a.Employee_name "Employee Name", /*specifying the table for employee name bc of duplicates*/
+			intck('year',Employee_Hire_Date,'31DEC2007'd) as YOS label= "Years of Service", /*Calculating YOS*/
+			coalesce(a2.Employee_Name, "Unknown") AS Manager_Name Label="Manager Name" /*finding the first non-missing value to correspond manager names*/
+		FROM orion.Employee_Addresses as a
+				INNER JOIN orion.Employee_Payroll as p /*wanting intersection of EMPLID from payroll and addresses*/
+					ON a.Employee_ID = p.Employee_ID
+				INNER JOIN orion.Employee_Organization as o /*wanting intersection of EMPLID from addresses and organization*/
+					ON a.Employee_ID=o.Employee_ID
+				LEFT JOIN orion.Employee_Addresses as a2 /*Wanting the set addresses EMPLID that also have a Manager ID from the organization set*/ 
+					ON o.Manager_ID = a2.Employee_ID
+		HAVING CALCULATED YOS > 30 /*subsetting by YOS*/
+		ORDER BY Manager_Name, YOS Desc, Employee_Name /*Manager name (ALPHA) => YOS Desc => Employee name (ALPHA)*/
+;
+Quit;
+title;
+
+
+/* Question 5: Inner Join 01 */
+/* 	- Use and inner join on Employee Payroll and Employee Addresses  */
+/* 	- Find the employees that reside in the US who are older than 18 */
+/* 	- display their gender and city */
+Title "US Employees";
+Proc SQL;
+	Select Employee_Name Label= "Name",
+				City,
+				intck('year',Birth_Date,'31DEC2007'd) AS Age, /*calculating the interval between date and DOB*/
+				Employee_Gender
+		FROM Orion.Employee_Payroll as p
+			INNER JOIN Orion.Employee_Addresses as a /*Performing the INNER JOIN that looks at the intersection of both data sets*/
+				ON p.Employee_ID=a.Employee_ID
+		WHERE Calculated Age > 18
+				AND Country = "US" /*Age and Country Condition*/
+		ORDER BY Age, city, Employee_Name /*Setting ascending order all for each level of consideration*/
+;
+Quit;
+Title;
+
+/* Question 6:Inner Join 02  */
+/* 	- Write report with train.staffmaster/payrollmaster to produce report  */
+/* 	- contain names, jobcodes, genders of employees who live in New Jersey */
+/* 	- order by Job gender and job code */
+
+Title "New Jersey Employees";
+Proc SQL;
+	Select substr(firstname,1,1)||"."|| lastname AS Name, /*Using concatonation to substr the first initial of first name w/ period and LN*/
+				JobCode, Gender
+	FROM Train.staffmaster as s
+		INNER JOIN Train.Payrollmaster as p 
+			ON s.EMPID = p.EMPID /*finding the intersection of both tables EMPLID*/
+	WHERE State = "NJ" /*Subsetting to New Jersey Employees*/
+	ORDER BY Gender, JobCode
+;
+Quit;
+Title;
+
+proc print data= train.staffmaster (obs=10);run;
+proc contents data=train.staffmaster; run;
+
+proc print data= train.Payrollmaster (obs=10);run;
+proc contents data=train.Payrollmaster; run;
+
+
+/* Question 7: Coalesce Function */
+/* 	- Use data sets in part A to Coalesce with an inner join to get the displayed output */
+
+/* Part A */
+data t1 t2;
+		call streaminit(54321);
+   do id=1,7,4,2,6,11,9;
+		chol=int(rand("Normal",240,40));
+		sbp=int(rand("Normal",120,20));
+		output t1;
+  	end;
+   do id1=2,1,5,7,3,9;
+		chol=int(rand("Normal",240,40));
+		sbp=int(rand("Normal",120,20));
+		output t2;
+	end;
+run;
+title "t1";
+proc print data=t1 noobs;run;
+title "t2";
+proc print data=t2 noobs;run;
+title;
+
+/* Part B */
+Title "Coalesced Inner Join";
+Proc SQL;
+	Select Coalesce(t1.id,t2.id1) AS ID, /*matching t1 ID column with t2's differently named column*/
+				t1.Chol,
+				t2.sbp /*need to specify the table bc they exist in both*/
+		FROM t1
+			INNER JOIN t2
+				ON t1.id = t2.id1 /*Joining the intersection of where the ID's exist*/
+		ORDER BY ID		
+;
+Quit;
+Title;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
